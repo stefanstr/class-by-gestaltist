@@ -31,6 +31,9 @@ classmeta.__call = function(klass, definitions)
 		error("You need to include the class name in the class definition.")
 	end
 	
+	-- This is supposed to hold functions - using colon notation and/or self is not required and is up to the user.
+	meta.__methods = definitions.methods or {}
+	
 	-- If a setter exists for a given key, then changing that key will invoke the setter.
 	-- The fields of this table need to be functions. These functions take two arguments:
 	-- a table and a value.
@@ -38,7 +41,7 @@ classmeta.__call = function(klass, definitions)
 	-- Getters work analogously
 	meta.__setters = definitions.setters or {}
 	meta.__getters = definitions.getters or {}
-
+	
 	-- If a key is given a true value here, it won't be changeable after object initialization
 	meta.__readonly = {class=true}
 	if definitions.readonly then
@@ -62,6 +65,8 @@ classmeta.__call = function(klass, definitions)
 	meta.__index = function(t,k)
 		if k== "__" then 
 			return rawget(t,k)
+		elseif meta.__methods[k] then
+			return meta.__methods[k]
 		elseif meta.__getters[k] then
 			return meta.__getters[k](t)
 		elseif not rawget(t, "__")[k] then
@@ -83,7 +88,7 @@ classmeta.__call = function(klass, definitions)
 		end
 	end
 
-	return function (initValues)
+	return function (initValues, ...)
 		local t = {}
 		for k,v in pairs(initValues) do
 			t[k] = v
@@ -93,7 +98,11 @@ classmeta.__call = function(klass, definitions)
 				error("'" .. v .. "' is an obligatory parameter for a new instance of class " .. name, 2)
 			end
 		end
-		return setmetatable({__=t}, meta)
+		local obj = setmetatable({__=t}, meta)
+		if definitions.initialize then
+			definitions.initialize(obj)
+		end
+		return obj
 	end
 end
 
