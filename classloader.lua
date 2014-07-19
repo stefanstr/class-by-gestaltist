@@ -40,6 +40,10 @@ Class{
 	
 ---
 In main file:
+require "definitions"
+
+or 
+
 assert(loadfile("definitions.lua"))()
 
 and the class "Klass" will be accessible and usable.	

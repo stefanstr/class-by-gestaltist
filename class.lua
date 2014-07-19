@@ -26,6 +26,17 @@ local classmeta = {}
 classmeta.__index = classmeta
 classmeta.__call = function(klass, definitions)
 	local meta = {}
+	
+	-- You can set metamethods for your class using definitions.metamethods
+	if definitions.metamethods then
+		for k,v in pairs(definitions.metamethods) do
+			if (k == "index") or (k == "newindex") then
+				error("The metamethod '" .. k .. "' is reserved and cannot be redefined.", 2)
+			else
+				meta["__" .. k] = v
+			end
+		end
+	end
 	local name = definitions.name
 	if not name then
 		error("You need to include the class name in the class definition.")
@@ -142,9 +153,16 @@ classmeta.__call = function(klass, definitions)
 			rawset(t.__, k, v)
 		end
 	end
+	
+	meta.__tostring = meta.__tostring or function (self) 
+		return ("instance of class " .. name)
+	end
 
 	return function (initValues, ...)
 		local t = {}
+		-- Setters are not invoked during this phase. This makes it easy to create
+		-- immutable types, e.g. - and if you need to invoke the setters during this
+		-- phase, you can write an 'initialize' method.
 		for k,v in pairs(initValues) do
 			if k ~= "class" then -- making sure that the 'class' field cannot be overwritten
 				if meta.__obligatory[k] or checkAllowed(k) then
@@ -159,7 +177,7 @@ classmeta.__call = function(klass, definitions)
 		end
 		local obj = setmetatable({__=t}, meta)
 		if definitions.initialize then
-			definitions.initialize(obj)
+			definitions.initialize(obj, ...)
 		end
 		return obj
 	end
