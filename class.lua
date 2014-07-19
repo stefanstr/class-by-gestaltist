@@ -34,6 +34,19 @@ classmeta.__call = function(klass, definitions)
 	-- This is supposed to hold functions - using colon notation and/or self is not required and is up to the user.
 	meta.__methods = definitions.methods or {}
 	
+	-- Adding default 'debug' methods which print all stored values or meta valuse
+	meta.__methods._printValues = function (self)
+		for k,v in pairs(self.__) do
+			print(k, v)
+		end
+	end
+	
+	meta.__methods._printMetaField = function (self, metafield)
+		for k, v in pairs(meta["__" .. metafield]) do
+			print(k, v)
+		end
+	end
+	
 	-- If a setter exists for a given key, then changing that key will invoke the setter.
 	-- The fields of this table need to be functions. These functions take two arguments:
 	-- a table and a value.
@@ -64,8 +77,13 @@ classmeta.__call = function(klass, definitions)
 	end
 	
 	-- The below fields must be included with the creation of a new instance. Otherwise,
-	-- an error will be raised. This should be a list of keys.
-	meta.__obligatory = definitions.obligatory or {}
+	-- an error will be raised. definitions.obligatory should be a list of keys.
+	meta.__obligatory = {}
+	if definitions.obligatory then
+		for _, v in pairs(definitions.obligatory) do
+			meta.__obligatory[v] = true
+		end
+	end
 	
 	-- If "allowed" is defined, only the keys listed there will be allowed to be set
 	-- after initialization - any other keys will result in an error.
@@ -92,6 +110,7 @@ classmeta.__call = function(klass, definitions)
 		elseif meta.__allowed then
 			assert(meta.__allowed[k], "'" .. k .. "' is not an allowed key.", 2)
 		end
+		return true
 	end
 
 	meta.__index = function(t,k)
@@ -127,14 +146,15 @@ classmeta.__call = function(klass, definitions)
 	return function (initValues, ...)
 		local t = {}
 		for k,v in pairs(initValues) do
-			if k ~= "class" then
-				checkAllowed(k)
-				t[k] = v
+			if k ~= "class" then -- making sure that the 'class' field cannot be overwritten
+				if meta.__obligatory[k] or checkAllowed(k) then
+					t[k] = v
+				end
 			end
 		end
-		for _, v in pairs(meta.__obligatory) do
-			if not t[v] then
-				error("'" .. v .. "' is an obligatory parameter for a new instance of class " .. name, 2)
+		for k, _ in pairs(meta.__obligatory) do
+			if not t[k] then
+				error("'" .. k .. "' is an obligatory parameter for a new instance of class " .. name, 2)
 			end
 		end
 		local obj = setmetatable({__=t}, meta)
