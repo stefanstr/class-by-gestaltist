@@ -60,7 +60,7 @@ classmeta.__call = function(klass, definitions)
 	meta.__typesetters = definitions.typesetters or {}
 	meta.__typegetters = definitions.typegetters or {}
 	
-	-- If a key is given a true value here, it won't be changeable after object initialization
+	-- Keys in this table won't be changeable after object initialization
 	meta.__readonly = {class=true}
 	if definitions.readonly then
 		for _, v in pairs(definitions.readonly) do
