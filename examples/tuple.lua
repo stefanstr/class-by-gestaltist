@@ -3,6 +3,11 @@ Class = require "classloader"
 Class {
 	name = "Tuple";
 	allowedkeytypes = {"number"};
+	initialize = function (self)
+		for i=1, #self do
+			assert(type(self[i]) == "number", "Only numeric values are allowed for tuples.")
+		end
+	end;
 	typesetters = {
 		number = function (self, value)
 			error("You cannot modify values of a tuple")
@@ -12,6 +17,19 @@ Class {
 		unpack = function (self)
 			local unpack = unpack or table.unpack
 			return unpack(self.__)
+		end;
+		slice = function (self, start, finish)
+			if start < 0 then
+				start = #self + start
+			end
+			if finish < 0 then
+				finish = #self + finish
+			end
+			local new = {}
+			for i = start, finish do
+				table.insert(new, self[i])
+			end
+			return Tuple(new)
 		end;
 	};
 	metamethods = {
