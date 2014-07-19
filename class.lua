@@ -41,6 +41,11 @@ classmeta.__call = function(klass, definitions)
 	-- Getters work analogously
 	meta.__setters = definitions.setters or {}
 	meta.__getters = definitions.getters or {}
+	-- The below need to have type names as keys and get fired for all keys of the given
+	-- type. Typesetters get 3 arguments: table, key and value, so you can do additional
+	-- operations on the key (e.g., make sure only natural numbers are accepted as keys).
+	meta.__typesetters = definitions.typesetters or {}
+	meta.__typegetters = definitions.typegetters or {}
 	
 	-- If a key is given a true value here, it won't be changeable after object initialization
 	meta.__readonly = {class=true}
@@ -61,6 +66,33 @@ classmeta.__call = function(klass, definitions)
 	-- The below fields must be included with the creation of a new instance. Otherwise,
 	-- an error will be raised. This should be a list of keys.
 	meta.__obligatory = definitions.obligatory or {}
+	
+	-- If "allowed" is defined, only the keys listed there will be allowed to be set
+	-- after initialization - any other keys will result in an error.
+	-- "allowedkeytypes" works similarly but checks for type.
+	-- These are checked for at the very beginning so unallowed fields can never be set.
+	if definitions.allowed then
+		meta.__allowed = {}
+		for k,v in pairs(definitions.allowed) do
+			meta.__allowed[v] = true
+		end
+	end
+	if definitions.allowedkeytypes then
+		meta.__allowedkeytypes = {}
+		for _,v in pairs(definitions.allowedkeytypes) do
+			meta.__allowedkeytypes[v] = true
+		end
+	end
+	
+	local function checkAllowed(k)
+		if meta.__allowedkeytypes then
+			if not meta.__allowed or not meta.__allowed[k] then
+				assert(meta.__allowedkeytypes[type(k)], "'" .. type(k) .. "' is not an allowed key type.", 2)
+			end
+		elseif meta.__allowed then
+			assert(meta.__allowed[k], "'" .. k .. "' is not an allowed key.", 2)
+		end
+	end
 
 	meta.__index = function(t,k)
 		if k== "__" then 
@@ -69,18 +101,22 @@ classmeta.__call = function(klass, definitions)
 			return meta.__methods[k]
 		elseif meta.__getters[k] then
 			return meta.__getters[k](t)
-		elseif not rawget(t, "__")[k] then
-			return meta.__defaults[k]
+		elseif meta.__typegetters[type(k)] then
+			return meta.__typegetters[type(k)](t)
 		else
-			return rawget(t, "__")[k]
+			return rawget(t, "__")[k] or meta.__defaults[k]
 		end
 	end
 
 	meta.__newindex = function(t,k,v)
+		checkAllowed(k)
+		
 		if k =="__" then 
 			rawset(t,k,v) 
 		elseif meta.__setters[k] then
 			meta.__setters[k](t, v)
+		elseif meta.__typesetters[type(k)] then
+			meta.__typesetters[type(k)](t, k, v)
 		elseif meta.__readonly[k] then
 			error("'" .. k .. "' is a read-only property.", 2)
 		else
@@ -91,7 +127,10 @@ classmeta.__call = function(klass, definitions)
 	return function (initValues, ...)
 		local t = {}
 		for k,v in pairs(initValues) do
-			t[k] = v
+			if k ~= "class" then
+				checkAllowed(k)
+				t[k] = v
+			end
 		end
 		for _, v in pairs(meta.__obligatory) do
 			if not t[v] then
