@@ -42,6 +42,9 @@ classmeta.__call = function(klass, definitions)
 		error("You need to include the class name in the class definition.")
 	end
 	
+	-- This is supposed to hold class values - they will be the same for each instance
+	meta.__shared = definitions.shared or {}
+	
 	-- This is supposed to hold functions - using colon notation and/or self is not required and is up to the user.
 	meta.__methods = definitions.methods or {}
 	
@@ -132,7 +135,9 @@ classmeta.__call = function(klass, definitions)
 		elseif meta.__getters[k] then
 			return meta.__getters[k](t)
 		elseif meta.__typegetters[type(k)] then
-			return meta.__typegetters[type(k)](t)
+			return meta.__typegetters[type(k)](t, k)
+		elseif meta.__shared[k] then
+			return meta.__shared[k]
 		else
 			return rawget(t, "__")[k] or meta.__defaults[k]
 		end
@@ -143,12 +148,14 @@ classmeta.__call = function(klass, definitions)
 		
 		if k =="__" then 
 			rawset(t,k,v) 
+		elseif meta.__readonly[k] then
+			error("'" .. k .. "' is a read-only property.", 2)
 		elseif meta.__setters[k] then
 			meta.__setters[k](t, v)
 		elseif meta.__typesetters[type(k)] then
 			meta.__typesetters[type(k)](t, k, v)
-		elseif meta.__readonly[k] then
-			error("'" .. k .. "' is a read-only property.", 2)
+		elseif meta.__shared[k] then
+			meta.__shared[k] = v
 		else
 			rawset(t.__, k, v)
 		end
@@ -166,7 +173,11 @@ classmeta.__call = function(klass, definitions)
 		for k,v in pairs(initValues) do
 			if k ~= "class" then -- making sure that the 'class' field cannot be overwritten
 				if meta.__obligatory[k] or checkAllowed(k) then
-					t[k] = v
+					if meta.__shared[k] then
+						meta.__shared[k] = v
+					else
+						t[k] = v
+					end
 				end
 			end
 		end
